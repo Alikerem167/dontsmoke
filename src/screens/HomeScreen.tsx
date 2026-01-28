@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, Vibration, Animated, Modal } from 'react-native';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { firestore, auth } from '../services/firebase';
 import { collection, doc, setDoc, getDoc } from 'firebase/firestore';
@@ -17,6 +18,8 @@ const HomeScreen = () => {
   const [bestStreakMs, setBestStreakMs] = useState(0);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const modalScaleAnim = useRef(new Animated.Value(0.8)).current;
+  const modalOpacityAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const fetchData = async () => {
@@ -77,7 +80,7 @@ const HomeScreen = () => {
     setLastMessages((prev) => [message, ...prev].slice(0, 5));
     setMotivationText(message);
     setModalType('motivation');
-    setShowModal(true);
+    openModal();
   };
 
   const handleDidSmoke = async () => {
@@ -95,7 +98,7 @@ const HomeScreen = () => {
     
     // Show relapse modal FIRST (before async operations)
     setModalType('relapse');
-    setShowModal(true);
+    openModal();
     
     // Reset timer
     setLastSmokeAt(null);
@@ -128,48 +131,94 @@ const HomeScreen = () => {
     }).start();
   }, [fadeAnim]);
 
+  const openModal = () => {
+    setShowModal(true);
+    modalScaleAnim.setValue(0.8);
+    modalOpacityAnim.setValue(0);
+    Animated.parallel([
+      Animated.spring(modalScaleAnim, {
+        toValue: 1,
+        friction: 6,
+        tension: 80,
+        useNativeDriver: true,
+      }),
+      Animated.timing(modalOpacityAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const closeModal = () => {
+    Animated.parallel([
+      Animated.timing(modalScaleAnim, {
+        toValue: 0.8,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(modalOpacityAnim, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setShowModal(false);
+    });
+  };
+
   return (
     <View style={styles.container}>
-      <Modal visible={showModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+      <Modal visible={showModal} transparent animationType="none">
+        <Animated.View style={[styles.modalOverlay, { opacity: modalOpacityAnim }]}>
+          <Animated.View style={[styles.modalContent, { transform: [{ scale: modalScaleAnim }] }]}>
             {modalType === 'motivation' ? (
               <>
-                <Text style={styles.modalTitle}>💪 Stay Strong!</Text>
+                <View style={styles.modalTitleRow}>
+                  <MaterialCommunityIcons name="arm-flex" size={28} color="#d32f2f" />
+                  <Text style={styles.modalTitle}> Stay Strong!</Text>
+                </View>
                 <Text style={styles.modalMessage}>{motivationText}</Text>
               </>
             ) : (
               <>
-                <Text style={styles.modalTitle}>🔄 Fresh Start</Text>
+                <View style={styles.modalTitleRow}>
+                  <Ionicons name="refresh" size={28} color="#1976d2" />
+                  <Text style={styles.modalTitle}> Fresh Start</Text>
+                </View>
                 <Text style={styles.modalMessage}>
                   Don't worry. We restart now.{'\n'}One slip doesn't erase your progress.{'\n\n'}Press Start when you're ready!
                 </Text>
               </>
             )}
-            <Pressable style={styles.modalButton} onPress={() => setShowModal(false)}>
+            <Pressable style={styles.modalButton} onPress={closeModal}>
               <Text style={styles.modalButtonText}>OK</Text>
             </Pressable>
-          </View>
-        </View>
+          </Animated.View>
+        </Animated.View>
       </Modal>
 
       <View style={styles.header}>
-        <Text style={styles.bestStreakLabel}>🏆 Best Streak</Text>
+        <View style={styles.bestStreakLabelRow}>
+          <Ionicons name="trophy" size={18} color="#f9a825" />
+          <Text style={styles.bestStreakLabel}> Best Streak</Text>
+        </View>
         <Text style={styles.bestStreakValue}>{bestStreakMs > 0 ? formatDuration(bestStreakMs) : 'No record yet'}</Text>
       </View>
 
-      <View style={styles.timerContainer}>
-        <Animated.View style={{ opacity: fadeAnim }}>
-          <Text style={styles.timerLabel}>You haven't smoked for</Text>
-          <Text style={styles.timer}>{timer || 'Press Start to begin'}</Text>
-        </Animated.View>
-      </View>
+      <View style={styles.mainContent}>
+        <View style={styles.timerContainer}>
+          <Animated.View style={{ opacity: fadeAnim }}>
+            <Text style={styles.timerLabel}>You haven't smoked for</Text>
+            <Text style={styles.timer}>{timer || 'Press Start to begin'}</Text>
+          </Animated.View>
+        </View>
 
-      <View style={styles.buttonContainer}>
-        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-          <Pressable
-            style={[styles.bigButton, lastSmokeAt ? styles.bigButtonSecondary : styles.bigButtonPrimary]}
-            onPress={lastSmokeAt ? handleMotivation : handleStart}
+        <View style={styles.buttonContainer}>
+          <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+            <Pressable
+              style={[styles.bigButton, lastSmokeAt ? styles.bigButtonSecondary : styles.bigButtonPrimary]}
+              onPress={lastSmokeAt ? handleMotivation : handleStart}
             accessibilityLabel={lastSmokeAt ? "I want to smoke button" : "Start timer button"}
             accessibilityRole="button"
           >
@@ -178,6 +227,7 @@ const HomeScreen = () => {
             </Text>
           </Pressable>
         </Animated.View>
+        </View>
       </View>
 
       <View style={styles.secondaryButtonContainer}>
@@ -187,6 +237,7 @@ const HomeScreen = () => {
           accessibilityLabel="I did smoke button - resets timer"
           accessibilityRole="button"
         >
+          <Ionicons name="alert-circle-outline" size={18} color="#999" style={{ marginRight: 8 }} />
           <Text style={styles.secondaryButtonText}>I did smoke</Text>
         </Pressable>
       </View>
@@ -198,51 +249,56 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 40,
-    paddingBottom: 40,
+    paddingTop: 50,
+    paddingBottom: 30,
     backgroundColor: '#fafafa',
-    justifyContent: 'space-between',
   },
   header: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 10,
+  },
+  bestStreakLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 5,
   },
   bestStreakLabel: {
     fontSize: 14,
     color: '#999',
-    marginBottom: 5,
   },
   bestStreakValue: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#333',
   },
-  timerContainer: {
+  mainContent: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 40,
+  },
+  timerContainer: {
+    alignItems: 'center',
+    marginBottom: 30,
   },
   timerLabel: {
     fontSize: 16,
     color: '#666',
-    marginBottom: 10,
+    marginBottom: 8,
     textAlign: 'center',
   },
   timer: {
-    fontSize: 48,
+    fontSize: 42,
     fontWeight: 'bold',
     color: '#d32f2f',
     textAlign: 'center',
   },
   buttonContainer: {
     alignItems: 'center',
-    marginBottom: 20,
   },
   bigButton: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 8,
@@ -258,25 +314,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#f57c00',
   },
   bigButtonText: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#fff',
   },
   secondaryButtonContainer: {
     alignItems: 'center',
+    marginTop: 20,
+    paddingBottom: 10,
   },
   secondaryButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 40,
-    backgroundColor: '#e3f2fd',
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#1976d2',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    backgroundColor: 'transparent',
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: '#ccc',
   },
   secondaryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1976d2',
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#888',
   },
   modalOverlay: {
     flex: 1,
@@ -296,10 +356,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 8,
   },
+  modalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
   modalTitle: {
     fontSize: 22,
     fontWeight: 'bold',
-    marginBottom: 12,
     color: '#333',
   },
   modalMessage: {
