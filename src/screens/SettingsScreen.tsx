@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Button, StyleSheet, Alert } from 'react-native';
-import { auth, firestore } from '../services/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { getLastSmokeAt } from '../services/persistence';
+import { getBestStreakMs, getRelapseCount, resetAllData } from '../services/persistence';
 import { formatDuration } from '../utils/formatDuration';
 
 const SettingsScreen = () => {
@@ -14,16 +12,12 @@ const SettingsScreen = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const userRef = doc(firestore, 'users', auth.currentUser?.uid || 'user-id');
-        const userDoc = await getDoc(userRef);
-        if (userDoc.exists()) {
-          const bestStreakMs = userDoc.data()?.bestStreakMs || 0;
-          const relapseCount = userDoc.data()?.relapseCount || 0;
-          setStats({
-            bestStreak: bestStreakMs > 0 ? formatDuration(bestStreakMs) : 'No record yet',
-            relapseCount,
-          });
-        }
+        const bestStreakMs = await getBestStreakMs();
+        const relapseCount = await getRelapseCount();
+        setStats({
+          bestStreak: bestStreakMs > 0 ? formatDuration(bestStreakMs) : 'No record yet',
+          relapseCount,
+        });
       } catch (error) {
         console.error('Error fetching stats:', error);
       }
@@ -31,36 +25,19 @@ const SettingsScreen = () => {
     fetchStats();
   }, []);
 
-  const handleLogout = async () => {
-    try {
-      await auth.signOut();
-    } catch (error) {
-      console.error('Error logging out:', error);
-    }
-  };
-
   const handleResetAccount = () => {
     Alert.alert(
       'Reset Account',
-      'Are you sure? This will reset your timer and relapse count.',
+      'Are you sure? This will reset your timer and all stats.',
       [
         { text: 'Cancel', onPress: () => {}, style: 'cancel' },
         {
           text: 'Reset',
           onPress: async () => {
             try {
-              const userRef = doc(firestore, 'users', auth.currentUser?.uid || 'user-id');
-              await setDoc(
-                userRef,
-                {
-                  lastSmokeAt: null,
-                  relapseCount: 0,
-                  bestStreakSeconds: stats.relapseCount > 0 ? 0 : parseInt(stats.bestStreak),
-                },
-                { merge: true }
-              );
-              setStats({ bestStreak: '0 seconds', relapseCount: 0 });
-              Alert.alert('Success', 'Your account has been reset.');
+              await resetAllData();
+              setStats({ bestStreak: 'No record yet', relapseCount: 0 });
+              Alert.alert('Success', 'Your data has been reset.');
             } catch (error) {
               console.error('Error resetting account:', error);
             }
@@ -86,11 +63,7 @@ const SettingsScreen = () => {
       </View>
 
       <View style={styles.buttonContainer}>
-        <Button title="Reset Account" onPress={handleResetAccount} color="#d32f2f" />
-      </View>
-
-      <View style={styles.buttonContainer}>
-        <Button title="Log Out" onPress={handleLogout} color="#1976d2" />
+        <Button title="Reset All Data" onPress={handleResetAccount} color="#d32f2f" />
       </View>
     </View>
   );

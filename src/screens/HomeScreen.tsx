@@ -2,9 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, Vibration, Animated, Modal } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { firestore, auth } from '../services/firebase';
-import { collection, doc, setDoc, getDoc } from 'firebase/firestore';
-import { saveLastSmokeAt, getLastSmokeAt } from '../services/persistence';
+import { saveLastSmokeAt, getLastSmokeAt, saveBestStreakMs, getBestStreakMs } from '../services/persistence';
 import { getRandomMessage } from '../utils/motivationalMessages';
 import { formatDuration } from '../utils/formatDuration';
 
@@ -27,12 +25,8 @@ const HomeScreen = () => {
         const timestamp = await getLastSmokeAt();
         if (timestamp && timestamp > 0) setLastSmokeAt(timestamp);
 
-        const userRef = doc(firestore, 'users', auth.currentUser?.uid || 'user-id');
-        const userDoc = await getDoc(userRef);
-        if (userDoc.exists()) {
-          const savedBestStreakMs = userDoc.data()?.bestStreakMs || 0;
-          setBestStreakMs(savedBestStreakMs);
-        }
+        const savedBestStreakMs = await getBestStreakMs();
+        setBestStreakMs(savedBestStreakMs);
       } catch (error) {
         console.error('Error fetching data:', error);
       }
@@ -70,8 +64,6 @@ const HomeScreen = () => {
     const now = Date.now();
     setLastSmokeAt(now);
     await saveLastSmokeAt(now);
-    const userRef = doc(collection(firestore, 'users'), 'user-id');
-    await setDoc(userRef, { lastSmokeAt: now }, { merge: true });
   };
 
   const handleMotivation = () => {
@@ -94,6 +86,7 @@ const HomeScreen = () => {
     if (currentStreakMs > bestStreakMs) {
       newBestStreakMs = currentStreakMs;
       setBestStreakMs(newBestStreakMs);
+      await saveBestStreakMs(newBestStreakMs);
     }
     
     // Show relapse modal FIRST (before async operations)
@@ -104,14 +97,9 @@ const HomeScreen = () => {
     setLastSmokeAt(null);
     setTimer('');
     
-    // Async operations after modal is shown
+    // Save reset state
     try {
       await saveLastSmokeAt(0);
-      const userRef = doc(firestore, 'users', auth.currentUser?.uid || 'user-id');
-      await setDoc(userRef, { 
-        lastSmokeAt: 0,
-        bestStreakMs: newBestStreakMs,
-      }, { merge: true });
     } catch (error) {
       console.error('Error saving:', error);
     }
@@ -119,7 +107,7 @@ const HomeScreen = () => {
 
   useFocusEffect(
     useCallback(() => {
-      Vibration.vibrate(50); // Haptic feedback when screen is focused
+      Vibration.vibrate(50);
     }, [])
   );
 
@@ -219,14 +207,14 @@ const HomeScreen = () => {
             <Pressable
               style={[styles.bigButton, lastSmokeAt ? styles.bigButtonSecondary : styles.bigButtonPrimary]}
               onPress={lastSmokeAt ? handleMotivation : handleStart}
-            accessibilityLabel={lastSmokeAt ? "I want to smoke button" : "Start timer button"}
-            accessibilityRole="button"
-          >
-            <Text style={styles.bigButtonText}>
-              {lastSmokeAt ? "I wanna smoke" : "Start"}
-            </Text>
-          </Pressable>
-        </Animated.View>
+              accessibilityLabel={lastSmokeAt ? "I want to smoke button" : "Start timer button"}
+              accessibilityRole="button"
+            >
+              <Text style={styles.bigButtonText}>
+                {lastSmokeAt ? "I wanna smoke" : "Start"}
+              </Text>
+            </Pressable>
+          </Animated.View>
         </View>
       </View>
 
