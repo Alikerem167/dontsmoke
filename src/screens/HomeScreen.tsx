@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, Vibration, Animated, Modal } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
 import { useFocusEffect } from '@react-navigation/native';
 import { saveLastSmokeAt, getLastSmokeAt, saveBestStreakMs, getBestStreakMs } from '../services/persistence';
 import { getRandomMessage } from '../utils/motivationalMessages';
@@ -229,6 +230,17 @@ const HomeScreen = () => {
           <Text style={styles.secondaryButtonText}>I did smoke</Text>
         </Pressable>
       </View>
+
+      {/* Banner Reklam */}
+      <View style={styles.adContainer}>
+        <BannerAd
+          unitId={TestIds.BANNER}
+          size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+          requestOptions={{
+            requestNonPersonalizedAdsOnly: true,
+          }}
+        />
+      </View>
     </View>
   );
 };
@@ -371,6 +383,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
+  },
+  adContainer: {
+    alignItems: 'center',
+    marginTop: 10,
   },
 });
 
